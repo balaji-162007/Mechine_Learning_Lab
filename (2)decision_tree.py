@@ -54,25 +54,17 @@ def print_tree(node, lvl=0):
         print(indent + f" {v}:")
         print_tree(child, lvl+1)
 
-# Dataset
-meta = np.array(["Outlook", "Temperature", "Humidity", "Wind"])
-data = np.array([
-    ['Sunny','Hot','High','Weak','No'],
-    ['Sunny','Hot','High','Strong','No'],
-    ['Overcast','Hot','High','Weak','Yes'],
-    ['Rain','Mild','High','Weak','Yes'],
-    ['Rain','Cool','Normal','Weak','Yes'],
-    ['Rain','Cool','Normal','Strong','No'],
-    ['Overcast','Cool','Normal','Strong','Yes'],
-    ['Sunny','Mild','High','Weak','No'],
-    ['Sunny','Cool','Normal','Weak','Yes'],
-    ['Rain','Mild','Normal','Weak','Yes'],
-    ['Sunny','Mild','Normal','Strong','Yes'],
-    ['Overcast','Mild','High','Strong','Yes'],
-    ['Overcast','Hot','Normal','Weak','Yes'],
-    ['Rain','Mild','High','Strong','No']
-])
+# 🔥 READ FROM CSV FILE
+# Make sure data.csv is in same folder
 
+dataset = np.genfromtxt("data.csv", delimiter=",", dtype=str)
+
+# First row = column names
+meta = dataset[0][:-1]   # all columns except last
+data = dataset[1:]       # remaining rows are data
+
+# Build tree
 root = build(data, meta)
+
 print("\n--- DECISION TREE (C4.5 Gain Ratio) ---\n")
 print_tree(root)
