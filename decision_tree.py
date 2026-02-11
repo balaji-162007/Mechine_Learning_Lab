@@ -1,111 +1,78 @@
 import numpy as np
 
 class Node:
-    def __init__(self, attribute):
-        self.attribute = attribute
+    def __init__(self, attr="", ans=""):
+        self.attr = attr
+        self.ans = ans
         self.children = []
-        self.answer = ""
 
-def subtables(data, col, delete=False):
-    items = np.unique(data[:, col])
-    res_dict = {}
-    for item in items:
-        # Filter rows where the column matches the current item
-        sub_data = data[data[:, col] == item]
-        if delete:
-            sub_data = np.delete(sub_data, col, 1)
-        res_dict[item] = sub_data
-    return items, res_dict
-
-def entropy(S):
-    items, counts = np.unique(S, return_counts=True)
-    if items.size <= 1:
-        return 0
-    
-    probs = counts / S.size
-    return -np.sum(probs * np.log2(probs))
+def entropy(y):
+    _, c = np.unique(y, return_counts=True)
+    p = c / len(y)
+    return -np.sum(p * np.log2(p)) if len(c) > 1 else 0
 
 def gain_ratio(data, col):
-    items, dict_sub = subtables(data, col, delete=False)
-    total_size = data.shape[0]
-    total_entropy = entropy(data[:, -1])
+    total_e = entropy(data[:, -1])
+    vals, counts = np.unique(data[:, col], return_counts=True)
+    split_info = -np.sum((counts/len(data)) * np.log2(counts/len(data)))
     
-    weighted_entropy = 0
-    intrinsic_val = 0
+    weighted_e = 0
+    for v in vals:
+        sub = data[data[:, col] == v]
+        weighted_e += (len(sub)/len(data)) * entropy(sub[:, -1])
     
-    for item in items:
-        sub_group = dict_sub[item]
-        ratio = sub_group.shape[0] / total_size
-        weighted_entropy += ratio * entropy(sub_group[:, -1])
-        intrinsic_val -= ratio * np.log2(ratio)
-        
-    info_gain = total_entropy - weighted_entropy
-    # Gain Ratio = Info Gain / Split Info (intrinsic value)
-    return info_gain / intrinsic_val if intrinsic_val != 0 else 0
+    info_gain = total_e - weighted_e
+    return info_gain / split_info if split_info else 0
 
-def create_node(data, metadata):
-    # Case 1: All targets are the same
-    if len(np.unique(data[:, -1])) == 1:
-        node = Node("")
-        node.answer = np.unique(data[:, -1])[0]
-        return node
+def build(data, meta):
+    y = data[:, -1]
     
-    # Case 2: No more features left to split
+    if len(set(y)) == 1:
+        return Node(ans=y[0])
     if data.shape[1] == 1:
-        node = Node("")
-        vals, counts = np.unique(data[:, -1], return_counts=True)
-        node.answer = vals[np.argmax(counts)]
-        return node
+        vals, cnts = np.unique(y, return_counts=True)
+        return Node(ans=vals[np.argmax(cnts)])
 
-    # Calculate Gain Ratio for each attribute
-    gains = [gain_ratio(data, col) for col in range(data.shape[1] - 1)]
-    split = np.argmax(gains)
+    gains = [gain_ratio(data, i) for i in range(data.shape[1]-1)]
+    best = np.argmax(gains)
+    node = Node(attr=meta[best])
     
-    node = Node(metadata[split])
-    items, dict_sub = subtables(data, split, delete=True)
+    for v in np.unique(data[:, best]):
+        sub = data[data[:, best] == v]
+        sub = np.delete(sub, best, axis=1)
+        node.children.append((v, build(sub, np.delete(meta, best))))
     
-    # Update metadata for the child nodes
-    new_metadata = np.delete(metadata, split, 0)
-    
-    for item in items:
-        child = create_node(dict_sub[item], new_metadata)
-        node.children.append((item, child))
     return node
 
-def print_tree(node, level=0):
-    indent = "    " * level
-    if node.answer != "":
-        print(f"{indent}--> {node.answer}")
+def print_tree(node, lvl=0):
+    indent = "  " * lvl
+    if node.ans:
+        print(indent + "->", node.ans)
         return
-    print(f"{indent}[{node.attribute}]")
-    for value, n in node.children:
-        print(f"{indent}  {value}:")
-        print_tree(n, level + 1)
+    print(indent + f"[{node.attr}]")
+    for v, child in node.children:
+        print(indent + f" {v}:")
+        print_tree(child, lvl+1)
 
-# --- Integrated Dataset ---
-metadata = np.array(["Outlook", "Temperature", "Humidity", "Wind"])
+# Dataset
+meta = np.array(["Outlook", "Temperature", "Humidity", "Wind"])
+data = np.array([
+    ['Sunny','Hot','High','Weak','No'],
+    ['Sunny','Hot','High','Strong','No'],
+    ['Overcast','Hot','High','Weak','Yes'],
+    ['Rain','Mild','High','Weak','Yes'],
+    ['Rain','Cool','Normal','Weak','Yes'],
+    ['Rain','Cool','Normal','Strong','No'],
+    ['Overcast','Cool','Normal','Strong','Yes'],
+    ['Sunny','Mild','High','Weak','No'],
+    ['Sunny','Cool','Normal','Weak','Yes'],
+    ['Rain','Mild','Normal','Weak','Yes'],
+    ['Sunny','Mild','Normal','Strong','Yes'],
+    ['Overcast','Mild','High','Strong','Yes'],
+    ['Overcast','Hot','Normal','Weak','Yes'],
+    ['Rain','Mild','High','Strong','No']
+])
 
-# Format: [Outlook, Temp, Humidity, Wind, PlayTennis (Target)]
-traindata = [
-    ['Sunny', 'Hot', 'High', 'Weak', 'No'],
-    ['Sunny', 'Hot', 'High', 'Strong', 'No'],
-    ['Overcast', 'Hot', 'High', 'Weak', 'Yes'],
-    ['Rain', 'Mild', 'High', 'Weak', 'Yes'],
-    ['Rain', 'Cool', 'Normal', 'Weak', 'Yes'],
-    ['Rain', 'Cool', 'Normal', 'Strong', 'No'],
-    ['Overcast', 'Cool', 'Normal', 'Strong', 'Yes'],
-    ['Sunny', 'Mild', 'High', 'Weak', 'No'],
-    ['Sunny', 'Cool', 'Normal', 'Weak', 'Yes'],
-    ['Rain', 'Mild', 'Normal', 'Weak', 'Yes'],
-    ['Sunny', 'Mild', 'Normal', 'Strong', 'Yes'],
-    ['Overcast', 'Mild', 'High', 'Strong', 'Yes'],
-    ['Overcast', 'Hot', 'Normal', 'Weak', 'Yes'],
-    ['Rain', 'Mild', 'High', 'Strong', 'No']
-]
-
-data = np.array(traindata)
-
-# Build and Print
-root = create_node(data, metadata)
+root = build(data, meta)
 print("\n--- DECISION TREE (C4.5 Gain Ratio) ---\n")
 print_tree(root)
